@@ -29,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const systemPrompt = `
       You are a commercial material application specialist. 
       Analyze the provided alloy composition and properties.
-      Search the internet for modern industries and specific products that require these exact characteristics.
+      Use your extensive knowledge of modern industries and specific products that require these exact characteristics.
       Provide highly specific application suggestions.
       ${langInstruction}
     `;
@@ -47,7 +47,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       model: GEMINI_MODEL,
       contents: userPrompt,
       config: {
-        tools: [{ googleSearch: {} }],
         systemInstruction: systemPrompt,
         responseMimeType: "application/json",
         responseSchema: {

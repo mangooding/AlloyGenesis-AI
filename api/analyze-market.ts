@@ -29,7 +29,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const systemPrompt = `
       You are an expert industrial analyst. Your goal is to translate a text description of a market need or product requirement into technical metallurgical parameters (0-100 integers).
       
-      You MUST use Google Search to verify current industry standards for the requested application.
+      Use your extensive knowledge of current industry standards and market trends to provide accurate parameters.
       ${langInstruction}
       Return a JSON object matching the UserRequirements structure.
     `;
@@ -38,7 +38,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       model: GEMINI_MODEL,
       contents: `Analyze this market demand and provide metallurgical requirements: "${marketInput}"`,
       config: {
-        tools: [{ googleSearch: {} }],
         systemInstruction: systemPrompt,
         responseMimeType: "application/json",
         responseSchema: {
