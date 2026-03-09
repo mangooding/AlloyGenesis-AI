@@ -1,0 +1,5 @@
+{
+  "name": "AlloyGenesis AI",
+  "description": "An advanced material science tool that uses AI to reverse-engineer metal alloy compositions based on desired properties like hardness, flexibility, and cost constraints. Includes feasibility and production analysis.",
+  "requestFramePermissions": []
+}
