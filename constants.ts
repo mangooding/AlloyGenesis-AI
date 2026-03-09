@@ -1,5 +1,5 @@
 // Using the Pro model for complex reasoning and chemical formulation
-export const GEMINI_MODEL = 'gemini-3-pro-preview';
+export const GEMINI_MODEL = 'gemini-2.5-flash';
 
 export const INITIAL_REQUIREMENTS = {
   targetHardness: 50,
