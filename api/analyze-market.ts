@@ -3,7 +3,7 @@ import type { UserRequirements, Language } from "../types";
 import { GEMINI_MODEL } from "../constants";
 
 export const config = {
-  runtime: 'edge',
+  maxDuration: 60,
 };
 
 export default async function handler(req: Request) {
