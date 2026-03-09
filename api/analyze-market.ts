@@ -1,25 +1,26 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import type { UserRequirements, Language } from "../types";
-import { GEMINI_MODEL } from "../constants";
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 export const config = {
   maxDuration: 60,
 };
 
-export default async function handler(req: Request) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405 });
+    return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'GEMINI_API_KEY is not set' }), { status: 500 });
+    return res.status(500).json({ error: 'GEMINI_API_KEY is not set' });
   }
 
   const ai = new GoogleGenAI({ apiKey });
 
   try {
-    const { marketInput, language } = await req.json();
+    const { marketInput, language } = req.body;
 
     const langInstruction = language === 'zh' 
       ? "Analyze strictly in context of Chinese and Global markets." 
@@ -30,7 +31,6 @@ export default async function handler(req: Request) {
       
       You MUST use Google Search to verify current industry standards for the requested application.
       ${langInstruction}
-
       Return a JSON object matching the UserRequirements structure.
     `;
 
@@ -38,7 +38,7 @@ export default async function handler(req: Request) {
       model: GEMINI_MODEL,
       contents: `Analyze this market demand and provide metallurgical requirements: "${marketInput}"`,
       config: {
-        tools: [{ googleSearch: {} }], // Enable grounding
+        tools: [{ googleSearch: {} }],
         systemInstruction: systemPrompt,
         responseMimeType: "application/json",
         responseSchema: {
@@ -59,9 +59,9 @@ export default async function handler(req: Request) {
 
     const text = response.text;
     if (!text) throw new Error("No response from AI");
-    return new Response(text, { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return res.status(200).json(JSON.parse(text));
   } catch (error: any) {
     console.error("Market Analysis Error:", error);
-    return new Response(JSON.stringify({ error: error.message || 'Internal Server Error' }), { status: 500 });
+    return res.status(500).json({ error: error.message || 'Internal Server Error' });
   }
 }
