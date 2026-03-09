@@ -49,7 +49,7 @@ export default async function handler(req: Request) {
             targetCorrosionResistance: { type: Type.INTEGER },
             targetHeatResistance: { type: Type.INTEGER },
             targetWeight: { type: Type.INTEGER },
-            costConstraint: { type: Type.STRING, enum: [\'Budget\', \'Standard\', \'Premium\'] },
+            costConstraint: { type: Type.STRING, enum: ['Budget', 'Standard', 'Premium'] },
             applicationContext: { type: Type.STRING }
           },
           required: ["targetHardness", "targetFlexibility", "targetCorrosionResistance", "targetHeatResistance", "targetWeight", "costConstraint", "applicationContext"]
