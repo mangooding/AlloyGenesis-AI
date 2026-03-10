@@ -2,10 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import InputPanel from './components/InputPanel';
 import ResultDashboard from './components/ResultDashboard';
 import ProcessingOverlay from './components/ProcessingOverlay';
+import AuthModal from './components/AuthModal';
+import RecipeHistory from './components/RecipeHistory';
 import { UserRequirements, AlloyResult, Language, SavedRecipe } from './types';
 import { INITIAL_REQUIREMENTS, TRANSLATIONS } from './constants';
 import { generateAlloyComposition } from './services/geminiService';
-import { Beaker } from 'lucide-react';
+import { useAuth } from './lib/AuthContext';
+import { Beaker, LogOut, LogIn, History } from 'lucide-react';
 
 const App: React.FC = () => {
   const [requirements, setRequirements] = useState<UserRequirements>(INITIAL_REQUIREMENTS);
@@ -23,12 +26,19 @@ const App: React.FC = () => {
     title: string;
   }>({ isVisible: false, steps: [], title: '' });
 
-  const [isLoading, setIsLoading] = useState(false); // Keeps track if main generation is loading
+  const [isLoading, setIsLoading] = useState(false);
 
   // Batch Processing State
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
   const stopBatchRef = useRef(false);
+
+  // Auth Modal State
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [showRecipeHistory, setShowRecipeHistory] = useState(false);
+
+  const { user, signOut } = useAuth();
 
   // Load from local storage on mount
   useEffect(() => {
@@ -79,14 +89,49 @@ const App: React.FC = () => {
     }
   };
 
-  const handleSaveRecipe = (resultToSave: AlloyResult, specificReqs?: UserRequirements) => {
+  const handleSaveRecipe = async (resultToSave: AlloyResult, specificReqs?: UserRequirements) => {
     const newRecipe: SavedRecipe = {
       ...resultToSave,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 5), // Ensure unique ID for batch
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       timestamp: Date.now(),
       originalRequirements: specificReqs ? { ...specificReqs } : { ...requirements }
     };
+
+    // Save to local storage
     setSavedRecipes(prev => [newRecipe, ...prev]);
+
+    // If user is logged in, also save to cloud
+    if (user) {
+      try {
+        const response = await fetch('/api/recipes/save', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${user.id}`,
+          },
+          body: JSON.stringify({
+            alloyName: resultToSave.alloyName,
+            codeName: resultToSave.codeName,
+            description: resultToSave.description,
+            composition: resultToSave.composition,
+            properties: resultToSave.properties,
+            feasibility: resultToSave.feasibility,
+            manufacturing: resultToSave.manufacturing,
+            costAnalysis: resultToSave.costAnalysis,
+            applications: resultToSave.applications,
+            deepApplications: resultToSave.deepApplications,
+            similarAlloys: resultToSave.similarAlloys,
+            originalRequirements: newRecipe.originalRequirements,
+          }),
+        });
+
+        if (!response.ok) {
+          console.error('Failed to save recipe to cloud');
+        }
+      } catch (err) {
+        console.error('Error saving recipe to cloud:', err);
+      }
+    }
   };
 
   const handleDeleteRecipe = (id: string) => {
@@ -98,7 +143,6 @@ const App: React.FC = () => {
     setResult(recipe);
   };
 
-  // Helper to randomize parameters
   const generateRandomRequirements = (): UserRequirements => {
     return {
       targetHardness: Math.floor(Math.random() * 100),
@@ -107,7 +151,7 @@ const App: React.FC = () => {
       targetHeatResistance: Math.floor(Math.random() * 100),
       targetWeight: Math.floor(Math.random() * 100),
       costConstraint: ['Budget', 'Standard', 'Premium'][Math.floor(Math.random() * 3)] as any,
-      applicationContext: requirements.applicationContext // Keep context
+      applicationContext: requirements.applicationContext
     };
   };
 
@@ -126,7 +170,7 @@ const App: React.FC = () => {
       try {
         const data = await generateAlloyComposition(randomReqs, language);
         handleSaveRecipe(data, randomReqs);
-        setResult(data); // Update dashboard to show latest
+        setResult(data);
       } catch (err) {
         console.error(`Batch generation failed at index ${i}`, err);
       }
@@ -142,12 +186,28 @@ const App: React.FC = () => {
     stopBatchRef.current = true;
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setShowRecipeHistory(false);
+    } catch (err) {
+      console.error('Sign out error:', err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-200 flex flex-col font-sans">
       <ProcessingOverlay 
         isVisible={processingState.isVisible} 
         steps={processingState.steps} 
         title={processingState.title}
+      />
+
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        mode={authMode}
+        onModeChange={setAuthMode}
       />
 
       {/* Navbar */}
@@ -164,7 +224,42 @@ const App: React.FC = () => {
           </div>
         </div>
         <div className="ml-auto flex items-center gap-4">
-          <span className="text-xs text-slate-500 hidden md:block">v1.4.0</span>
+          <span className="text-xs text-slate-500 hidden md:block">v1.5.0</span>
+          
+          {/* Auth Buttons */}
+          {user ? (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowRecipeHistory(!showRecipeHistory)}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+                title={language === 'zh' ? '配方历史' : 'Recipe History'}
+              >
+                <History className="w-4 h-4" />
+                <span className="hidden md:inline">{language === 'zh' ? '历史' : 'History'}</span>
+              </button>
+              <div className="flex items-center gap-2 px-3 py-1.5 text-sm bg-indigo-600/20 rounded-lg">
+                <span className="text-indigo-300">{user.email}</span>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden md:inline">{language === 'zh' ? '退出' : 'Sign Out'}</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setAuthMode('login');
+                setAuthModalOpen(true);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+            >
+              <LogIn className="w-4 h-4" />
+              <span className="hidden md:inline">{language === 'zh' ? '登录' : 'Sign In'}</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -174,22 +269,37 @@ const App: React.FC = () => {
           
           {/* Left Panel: Inputs & Library */}
           <div className="md:col-span-4 lg:col-span-3 h-full overflow-hidden">
-            <InputPanel 
-              requirements={requirements}
-              setRequirements={setRequirements}
-              onGenerate={handleGenerate}
-              isLoading={isLoading}
-              language={language}
-              setLanguage={setLanguage}
-              savedRecipes={savedRecipes}
-              onDeleteRecipe={handleDeleteRecipe}
-              onLoadRecipe={handleLoadRecipe}
-              onBatchGenerate={handleBatchGenerate}
-              isBatchProcessing={isBatchProcessing}
-              batchProgress={batchProgress}
-              onStopBatch={handleStopBatch}
-              setProcessingOverlay={setProcessingOverlay}
-            />
+            {showRecipeHistory ? (
+              <div className="bg-slate-800/50 rounded-xl p-4 h-full overflow-y-auto">
+                <h3 className="text-lg font-bold mb-4 text-white">
+                  {language === 'zh' ? '配方历史' : 'Recipe History'}
+                </h3>
+                <RecipeHistory 
+                  language={language}
+                  onLoadRecipe={(recipe) => {
+                    handleLoadRecipe(recipe);
+                    setShowRecipeHistory(false);
+                  }}
+                />
+              </div>
+            ) : (
+              <InputPanel 
+                requirements={requirements}
+                setRequirements={setRequirements}
+                onGenerate={handleGenerate}
+                isLoading={isLoading}
+                language={language}
+                setLanguage={setLanguage}
+                savedRecipes={savedRecipes}
+                onDeleteRecipe={handleDeleteRecipe}
+                onLoadRecipe={handleLoadRecipe}
+                onBatchGenerate={handleBatchGenerate}
+                isBatchProcessing={isBatchProcessing}
+                batchProgress={batchProgress}
+                onStopBatch={handleStopBatch}
+                setProcessingOverlay={setProcessingOverlay}
+              />
+            )}
           </div>
 
           {/* Right Panel: Dashboard */}
